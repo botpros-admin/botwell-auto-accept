@@ -1,26 +1,36 @@
 {
   "name": "botwell-auto-accept",
   "displayName": "Auto Accept for Antigravity",
-  "description": "Auto-accept Run, Accept All, Retry, Allow, and Keep Waiting prompts in Anti Gravity. Toggle on/off from the status bar.",
-  "version": "1.0.0",
+  "description": "Auto-accept Run, Accept All, Retry, Allow, and Keep Waiting prompts in Antigravity. Toggle on/off from the status bar. NOT intended for standard VS Code.",
+  "version": "1.1.0",
   "publisher": "botwell",
   "license": "MIT",
   "engines": {
     "vscode": "^1.70.0"
   },
-  "categories": ["Other"],
-  "keywords": ["antigravity", "auto-accept", "auto-run", "agent", "automation"],
-  "activationEvents": ["*"],
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "antigravity",
+    "auto-accept",
+    "auto-run",
+    "agent",
+    "automation"
+  ],
+  "activationEvents": [
+    "*"
+  ],
   "main": "./extension.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/botwell/botwell-auto-accept"
+    "url": "https://github.com/botpros-admin/botwell-auto-accept"
   },
   "contributes": {
     "commands": [
       {
         "command": "botwell.autoAccept.toggle",
-        "title": "Toggle Auto-Accept"
+        "title": "Toggle Auto-Accept (Antigravity)"
       }
     ]
   }
