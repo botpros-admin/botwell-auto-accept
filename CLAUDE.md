@@ -1,83 +1,54 @@
-# CLAUDE.md — Secret handling (PLEASE READ FIRST)
+# CLAUDE.md — botwell-auto-accept
 
-Hey Claude (or any agent) — quick reminder before you touch secrets in this repo.
+Operating guide for AI agents working in this repo. Read before making changes.
 
-This repo is in the **internal-infra** secret tier. All secrets are managed via SOPS + GCP KMS, following the botpros-admin org policy. Full spec: https://github.com/botpros-admin/org-policy-workflows
+## What this is
 
-## Where secrets live
+A small, **public**, MIT-licensed VS Code extension that auto-accepts agent prompts in **Antigravity** (a VS Code fork) — Windows only. `extension.js` (VS Code Extension API) registers a status-bar toggle and spawns `scripts/auto_run.py`, a Python 3 worker that finds and invokes buttons through the Windows UI Automation tree (`comtypes` + COM). Default branch: `master`.
 
-Encrypted under `secrets/` in this repo, wrapped with this GCP KMS key:
+## Public repo — keep it public-safe
 
-```
-projects/botpros-secrets/locations/global/keyRings/internal-infra/cryptoKeys/sops-key
-```
+This repository is public. Do **not** add internal hostnames, IP addresses, infra identifiers (GCP project numbers/IDs, KMS key paths, service-account emails, WIF provider paths), tenant/tier details, or anything Bot Pros wouldn't want on the open internet. Keep docs and code generic.
 
-A `.sops.yaml` at the repo root is already configured for this tier.
+## Build / test / deploy
 
-## To READ a secret (local, for debugging)
+- **Install deps (runtime):** `pip install comtypes`. Python 3.x must be on `PATH`.
+- **Package:** `npx @vscode/vsce package` → produces `botwell-auto-accept-<version>.vsix`. No packaging script is committed; `package.json` has no `scripts` block.
+- **Install into Antigravity:** `antigravity --install-extension botwell-auto-accept-<version>.vsix` (use the `antigravity` CLI, **never** `code`).
+- **Uninstall:** `antigravity --uninstall-extension botwell.botwell-auto-accept`.
+- **Test:** none automated. Verify manually — install, toggle on, trigger a prompt, watch the **Auto Accept** output channel. Run the worker standalone with `python scripts/auto_run.py`.
+- **Release:** bump `version` in `package.json`, update `CHANGELOG.md`, re-package, commit the new `.vsix`.
 
-```bash
-# One-time: ensure you're authenticated
-gcloud auth application-default login --update-adc
+## Conventions
 
-# Decrypt a single secret file to stdout
-sops -d secrets/internal-infra/<filename>.enc.json
+- Create a feature branch for changes; open a PR into `master`. Do not force-push.
+- Keep the two runtimes in sync: the extension's `main`, command id (`botwell.autoAccept.toggle`), and the spawn path (`scripts/auto_run.py`) must stay consistent with `package.json` and `extension.js`.
+- Plain JS + a standalone Python script — no bundler, no framework. Don't introduce a build toolchain unless asked.
 
-# Or decrypt all secrets for this tier into shell env:
-set -a; eval "$(sops -d secrets/internal-infra/<filename>.enc.json | jq -r 'to_entries | .[] | "\(.key)=\(.value|tojson)"')"; set +a
-```
+## Secret handling
 
-## To ADD or EDIT a secret
+This repo contains and requires **no secrets** — no keys, tokens, accounts, or network calls. There is nothing to configure.
 
-```bash
-# Edit existing encrypted file (opens $EDITOR, decrypts on open, re-encrypts on save)
-sops secrets/internal-infra/<filename>.enc.json
+- Never commit plaintext secrets, `.env` files, `*.pem`, or credentials of any kind.
+- Never hardcode a key/token/password in source.
+- Every push runs `.github/workflows/secret-policy.yml` (org secret-policy enforcement) which scans for accidentally committed secrets.
+- If you ever spot a plaintext secret already in the repo or its history, flag it to the maintainer — do not reproduce the value.
 
-# Or encrypt a new plaintext file
-sops -e plain.json > secrets/internal-infra/new.enc.json
-rm plain.json  # always delete the plaintext
-```
+(For context: across the Bot Pros org, machine secrets are managed by a dedicated secrets manager, not committed to git. That machinery is irrelevant here because this tool uses none — don't paste org infra details into this public repo.)
 
-Then `git add secrets/internal-infra/...` and commit. The encrypted file is safe to push.
+## Gotchas / non-obvious facts
 
-## To CONSUME secrets in this repo's CI (GitHub Actions)
+- **Antigravity-only.** The button names and accessibility tree it targets are Antigravity's; it will not behave correctly in standard VS Code. `activationEvents` is `["*"]`, so it activates on any window.
+- **Windows-only.** The worker uses `ctypes.windll.user32` and `UIAutomationCore.dll` via COM. It cannot run on macOS/Linux.
+- **Brittle by nature.** `auto_run.py` matches buttons by hardcoded UIA property IDs (e.g. control type `50000` = Button, `50020` = Text) and exact/partial names ("Accept all", "Run…Alt", "Keep Waiting", "Retry", "Allow This Conversation", "Requires Input", "Expand", "Scroll to bottom"). Antigravity UI/label changes can silently break matching — update the name/type conditions here when that happens.
+- **Focus safety.** Each invoke is wrapped in `LockSetForegroundWindow(1/2)` so clicking does not steal foreground focus. Preserve this when editing `invoke_with_focus_lock`.
+- **Process lifecycle.** The extension spawns/kills the Python worker; `deactivate()` and the toggle both kill it. If Python isn't on `PATH`, `spawn` errors surface via `showErrorMessage`.
+- The uninstall/extension id is `botwell.botwell-auto-accept` (publisher `botwell` + name `botwell-auto-accept`).
 
-Copy this block into any job that needs decrypted secrets:
+## Do-nots
 
-```yaml
-permissions:
-  id-token: write
-  contents: read
-steps:
-  - uses: actions/checkout@v4
-  - uses: google-github-actions/auth@v2
-    with:
-      workload_identity_provider: projects/1047430058155/locations/global/workloadIdentityPools/github-actions/providers/github
-      service_account: sops-decrypt-internal-infra@botpros-secrets.iam.gserviceaccount.com
-  - uses: getsops/sops-installer-action@v1
-  - run: sops -d secrets/internal-infra/<filename>.enc.json > /tmp/decrypted.json
-```
-
-Workload Identity Federation is already bound for this repo — no SA JSON key needed.
-
-## HARD RULES (do not violate)
-
-- ❌ Never commit a plaintext `.env`, `secrets.json`, `config.yaml`, or `*.pem` to this repo
-- ❌ Never hardcode an API key, token, password, or credential into source code
-- ❌ Never log or print decrypted secret values (even in debug output)
-- ❌ Never copy a secret from another tier (e.g., Hartzell secret into a Botpros repo) — tier boundary = tenant firewall
-- ✅ If you find an existing plaintext secret in source, flag it to the user before touching it
-- ✅ If you need a new secret, ask the user for the value — never invent or guess
-
-## Enforcement
-
-Every push runs `.github/workflows/secret-policy.yml` which calls the reusable policy from `botpros-admin/org-policy-workflows`. It does three checks:
-1. GitHub native secret-scanning — BLOCKS push if known token formats detected (AWS, CF, Stripe, GitHub PATs, etc.)
-2. gitleaks scan — WARNS on broader plaintext patterns
-3. SOPS-required check — WARNS if any new `*.env` or `secrets/**` file lacks SOPS metadata
-
-Currently warn-only for Layers 2-3 (historical plaintext still being cleaned up); will flip to blocking once history is clean.
-
-## Questions
-
-If any of this is unclear or seems wrong for your use case, **ask the user before acting** — don't guess at secret handling.
+- ❌ Don't add internal infra details, secrets, or tenant/tier info to this public repo.
+- ❌ Don't recommend `code --install-extension` — it installs into VS Code, not Antigravity.
+- ❌ Don't add network calls, telemetry, or credential handling.
+- ❌ Don't force-push or push directly to `master`.
+- ✅ Only touch `README.md` / `CLAUDE.md` for docs work unless explicitly asked to change behavior.
