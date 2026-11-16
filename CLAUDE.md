@@ -31,7 +31,7 @@ This repo contains and requires **no secrets** — no keys, tokens, accounts, or
 
 - Never commit plaintext secrets, `.env` files, `*.pem`, or credentials of any kind.
 - Never hardcode a key/token/password in source.
-- Every push runs `.github/workflows/secret-policy.yml` (org secret-policy enforcement) which scans for accidentally committed secrets.
+- Every new commit is scanned for accidentally committed secrets by the Bot Pros build farm (there are no GitHub Actions workflows).
 - If you ever spot a plaintext secret already in the repo or its history, flag it to the maintainer — do not reproduce the value.
 
 (For context: across the Bot Pros org, machine secrets are managed by a dedicated secrets manager, not committed to git. That machinery is irrelevant here because this tool uses none — don't paste org infra details into this public repo.)

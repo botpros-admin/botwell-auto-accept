@@ -68,7 +68,7 @@ Bump the version in `package.json`, update `CHANGELOG.md`, then re-package.
 
 This project ships **no secrets and requires none** — no API keys, tokens, accounts, or network access. There is nothing to configure beyond having Python + `comtypes` on `PATH`.
 
-Do not commit any credentials here. Every push runs an org secret-policy check (`.github/workflows/secret-policy.yml`) that scans for accidentally committed secrets.
+Do not commit any credentials here. Every new commit is scanned for accidentally committed secrets by the Bot Pros build farm (there are no GitHub Actions workflows).
 
 ## Repo structure
 
@@ -79,7 +79,6 @@ package.json                     Extension manifest (name, publisher, command, e
 botwell-auto-accept-1.1.0.vsix   Packaged release artifact
 CHANGELOG.md                     Version history
 LICENSE                          MIT
-.github/workflows/secret-policy.yml   Org secret-scanning enforcement
 ```
 
 ## Status bar
